@@ -59,15 +59,20 @@ A planilha possui uma aba chamada `MIC`, com as colunas:
 
 ## Envio de e-mail
 
-Os destinatarios ficam definidos no inicio do fonte [EST051.tlpp](EST051.tlpp):
+Os destinatarios principais sao configurados no parametro `ZZ_MOVCUST`, em
+`SIGACFG > Ambiente > Cadastros > Parametros`, separados por ponto e virgula.
+Assim, a lista pode ser alterada sem recompilar o fonte. O parametro e por
+empresa e deve ser criado/configurado na empresa `03`.
+
+O destinatario em copia continua definido no fonte [EST051.tlpp](EST051.tlpp):
 
 ```advpl
-#DEFINE MIC_TO "pablo.junior@prolinhas.com.br"
 #DEFINE MIC_CC "ana.jaize@prolinhas.com.br"
 ```
 
-O remetente e obtido pelo parametro `MV_RELACNT`. Se ele estiver vazio, o
-arquivo ainda pode ser gerado, mas o envio nao sera realizado.
+O remetente e obtido pelo parametro `MV_RELACNT`. Se `ZZ_MOVCUST` ou
+`MV_RELACNT` estiver vazio, o arquivo ainda pode ser gerado, mas o envio nao
+sera realizado.
 
 ## Dependencias
 
@@ -75,6 +80,7 @@ arquivo ainda pode ser gerado, mas o envio nao sera realizado.
 - TopConn e acesso as tabelas `SD3`, `SB1`, `SCP`, `SRA`, `SF5` e `SYS_USR`.
 - Classe `FWMsExcelXlsx` disponivel no ambiente.
 - Funcao `u_WFEmail` configurada para envio automatico.
+- Parametro `ZZ_MOVCUST` preenchido com os destinatarios principais.
 - Parametro `MV_RELACNT` preenchido para execucoes com e-mail.
 
 ## Funcoes publicas

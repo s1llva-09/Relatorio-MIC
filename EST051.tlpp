@@ -2,10 +2,10 @@
 #Include "TopConn.ch"
 #Include "tlpp-core.th"
 
-// Destinatarios do envio automatico. Ficam aqui no topo, juntos, para nao
-// ter que cacar e-mail no meio da rotina quando alguem entrar ou sair.
-
-#DEFINE MIC_TO "pablo.junior@prolinhas.com.br"
+// Destinatarios principais NAO ficam no fonte: vem do parametro
+// ZZ_MOVCUST (SIGACFG > Ambiente > Cadastros > Parametros), separados
+// por ";". Assim entra e sai gente da lista sem recompilar nada.
+// Lembrando que parametro e por empresa: criado na 03, vale so na 03.
 #DEFINE MIC_CC "ana.jaize@prolinhas.com.br"
 
 /*/{Protheus.doc} RelatorioMIC
@@ -346,6 +346,7 @@ Return File(cArquivo)
 Static Function EnviaEmail(cArquivo as character, cDe as character, cAte as character, nLinhas as numeric)
 
     Local cFrom  := GetMV("MV_RELACNT") as character
+    Local cTo    := AllTrim(GetMV("ZZ_MOVCUST")) as character
     Local cTitle := "" as character
     Local cBody  := "" as character
 
@@ -362,9 +363,14 @@ Static Function EnviaEmail(cArquivo as character, cDe as character, cAte as char
     cBody += "<p><b>Emitido em: </b>" + DToC(Date()) + " " + Time() + "</p>"
     cBody += "</body></html>"
 
-    // Sem remetente o envio falha calado. MV_RELACNT e o parametro que
-    // guarda a conta de e-mail do sistema; se estiver vazio no ambiente,
-    // nao adianta seguir.
+    // Parametro inexistente ou em branco: melhor gritar no console do
+    // que chamar o u_WFEmail sem destinatario, que falharia calado.
+    If Empty(cTo)
+        ConOut("[MIC] ZZ_MOVCUST vazio -- sem destinatario, e-mail nao enviado")
+        Return
+    EndIf
+
+    // MV_RELACNT guarda a conta de e-mail do sistema (o remetente).
     If Empty(cFrom)
         ConOut("[MIC] MV_RELACNT vazio -- sem remetente, e-mail nao enviado")
         Return
@@ -375,12 +381,12 @@ Static Function EnviaEmail(cArquivo as character, cDe as character, cAte as char
         Return
     EndIf
 
-    ConOut("[MIC] enviando de " + cFrom + " para " + MIC_TO)
+    ConOut("[MIC] enviando de " + cFrom + " para " + cTo)
 
     // Ultimo parametro .T. = modo automatico (sem interface). E ele que
     // faz o u_WFEmail nao abrir janela de erro -- por isso o ConOut
     // acima e abaixo, que sao a unica pista quando o envio falha.
-    u_WFEmail(cFrom, MIC_TO, MIC_CC, "", cTitle, cBody, cArquivo, .T., .T.)
+    u_WFEmail(cFrom, cTo, MIC_CC, "", cTitle, cBody, cArquivo, .T., .T.)
 
     ConOut("[MIC] u_WFEmail retornou sem erro")
 
@@ -417,7 +423,9 @@ User function MICMENU()
     cDe  := If(Empty(aRet[1]), "", DToS(aRet[1]))
     cAte := If(Empty(aRet[2]), "", DToS(aRet[2]))
 
-    //Comparação de escolha para envio do Email ou não, antes a variavel validava por numero mas foi feita a comparação para aceitar N ou ""
+    // O combo devolve ora o TEXTO da opcao, ora o INDICE, dependendo da
+    // versao/contexto -- no PCE veio numerico, aqui veio "Sim". Por isso
+    // testamos o tipo antes: comparar direto com 1 estoura "type mismatch".
     If ValType(aRet[5]) == "N"
         lEnvia := (aRet[5] == 1)
     Else
