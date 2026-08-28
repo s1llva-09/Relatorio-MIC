@@ -1,0 +1,181 @@
+#include 'tlpp-core.th'
+#include 'topconn.ch'
+#DEFINE CRLF CHR(13) + CHR(10)
+/*
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+ฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑ
+ฑฑษออออออออออัออออออออออหอออออออัออออออออออออออออออออหออออออัอออออออออออออปฑฑ
+ฑฑบPrograma  ณ EST033    บAutor  ณ pcguiselini บ     Data ณ  21/04/2014   บฑฑ
+ฑฑฬออออออออออุออออออออออสอออออออฯออออออออออออออออออออสออออออฯอออออออออออออนฑฑ
+ฑฑบDesc.     ณ Estoque - Movimentos Internos Custeados                    บฑฑ
+ฑฑบ          ณ------------------------------------------------------------บฑฑ
+ฑฑบ          ณ L๊ o SD3 e seu apresenta o movto dos produto com o custo   บฑฑ
+ฑฑบ          ณ                                                            บฑฑ
+ฑฑฬออออออออออุออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออนฑฑ
+ฑฑบRegra     ณ Ler o SD3, apresenta os lanctos conforme filtro.           บฑฑ
+ฑฑศออออออออออฯออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผฑฑ
+ฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑฑ
+฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿฿
+*/
+User Function EST033()
+	Local aMensagem 	:= {}
+	Local aBotoes   	:= {}
+	Private cTitulo   	:= "EST033 - Movimentos Internos Custeados"
+	Private aDados 		:= {}                     
+	Private cPerg 		:= "EST033"
+
+	Pergunte(cPerg,.T.)
+
+	AAdd( aMensagem, "Este programa tem como objetivo gerar uma apresenta็ใo em MS-EXCEL")
+	AAdd( aMensagem, "L๊ o SD3 - Movtos Internos dos materiais, lista os lan็amentos e ")
+	AAdd( aMensagem, "apresenta seu respectivo custo.")
+	//AAdd( aMensagem, "Ordena por Lote.")
+
+	AADD( aBotoes, { 05, .T., { || Pergunte(cPerg,.T. ) } } )
+	AAdd( aBotoes, { 01, .T., { || SX5Param(), FechaBatch() } } )
+	AAdd( aBotoes, { 22, .T., { || FechaBatch() } } )
+
+	//FormBatch(<cTitulo>,<aMensagem>,<aBotoes>,<bValid>,nAltura,nLargura)
+	FormBatch( cTitulo, aMensagem, aBotoes, , 160 )
+Return Nil
+               
+**************************
+Static Function SX5Param() 
+	If ApOleClient("MsExcel")
+		Processa( {|| RptDetail()}, cTitulo, "Processando arquivo, aguarde...", .F. )                     
+	Else
+		FWAlertWarning("MsExcel nใo instalado")
+	Endif
+Return Nil
+
+***************************
+Static Function RptDetail()
+	// variaveis do XML/Excel
+    Local oFwMsEx as object
+    Local oExcel as object
+    Local cArquivo    := GetTempPath() + "EST033_"+DTOS(date())+"_"+Substr(Time(),1,2)+Substr(Time(),4,2)+".xml"  as character 
+   	//Local cArq 		:= ""
+   	//Local cDir 		:= GetSrvProfString("Startpath","") 
+   	//Local cDir 		:= GetClientDir()
+	Local cWorkSheet:= ""
+	Local cTable 	:= ""
+	//Local cDirTmp 	:= GetTempPath()
+	
+	// variaveis da rotina
+	Local cQuery1	:= ""
+	Local cQuery2	:= ""
+	
+	  	If Select("TRB") > 0
+	      DbSelectArea("TRB")         
+	      TRB->(DbCloseArea())
+	  	EndIf
+
+
+	//-- gera TIPO "MS"  e depois TIPO not in "MS,MP"
+		// Selecionar os registros   
+
+  		cQuery1 := "SELECT D3_FILIAL, D3_LOCAL, D3_COD, D3_LOTECTL, D3_EMISSAO, D3_CC, D3_QUANT, D3_CUSTO1, D3_TM, D3_CF,D3_DOC, D3_NUMSEQ, D3_MAT"  + CRLF
+		cQuery1 += "  ,ISNULL(SRA.RA_NOME, '') as ranomefun, D3_USUARIO, D3_ORDEM, D3_OP, ISNULL(SRA2.RA_NOME, '') as ranomesoli"  + CRLF
+		cQuery1 += "  ,B1_TIPO, B1_GRUPO, B1_UM, B1_CONTA, B1_DESC, ISNULL(CP_MAT, '') AS cpmat, ISNULL(USR.USR_NOME, '') as ranomeaten"  + CRLF
+		cQuery1 += "  FROM "+RetSqlName("SD3")+" SD3"  + CRLF
+		cQuery1 += "  INNER JOIN "+RetSqlName("SB1")+" SB1 ON B1_FILIAL = '"+xFilial("SB1")+"' AND B1_COD = D3_COD AND SB1.D_E_L_E_T_ =''"  + CRLF
+		cQuery1 += "  LEFT JOIN "+RetSqlName("SCP")+" SCP ON CP_FILIAL = '"+xFilial("SCP")+"' AND CP_NUM  = D3_NUMSA  AND CP_ITEM = D3_ITEMSA AND SCP.D_E_L_E_T_ =''"  + CRLF
+		cQuery1 += "  LEFT JOIN "+RetSqlName("SRA")+" SRA ON RA_FILIAL = '"+xFilial("SRA")+"' AND SRA.RA_MAT = CP_MAT AND SRA.D_E_L_E_T_ =''"  + CRLF
+		cQuery1 += "  LEFT JOIN "+RetSqlName("SRA")+" SRA2 ON SRA2.RA_FILIAL = '"+xFilial("SRA")+"' AND SRA2.RA_MAT = D3_MAT AND SRA2.D_E_L_E_T_ =''"  + CRLF
+		cQuery1 += "  LEFT JOIN SYS_USR USR ON USR.USR_CODIGO = D3_USUARIO AND USR.D_E_L_E_T_ =''"  + CRLF
+		cQuery1 += "  WHERE SD3.D_E_L_E_T_='' "  + CRLF
+		cQuery1 += " AND D3_FILIAL = '"+xFilial("SD3")+"'"  + CRLF
+		cQuery1 += " AND D3_ESTORNO <>'S'" + CRLF
+		cQuery2 += " AND D3_COD     BETWEEN '"+MV_PAR01+"' and '"+MV_PAR02+"'"  + CRLF
+		cQuery2 += " AND B1_GRUPO   BETWEEN '"+MV_PAR03+"' and '"+MV_PAR04+"'"  + CRLF
+		cQuery2 += " AND B1_TIPO    BETWEEN '"+MV_PAR05+"' and '"+MV_PAR06+"'"  + CRLF
+		cQuery2 += " AND D3_LOTECTL BETWEEN '"+MV_PAR07+"' and '"+MV_PAR08+"'"  + CRLF
+		cQuery2 += " AND D3_CC      BETWEEN '"+MV_PAR09+"' and '"+MV_PAR10+"'"  + CRLF
+		cQuery2 += " AND B1_CONTA   BETWEEN '"+MV_PAR11+"' and '"+MV_PAR12+"'"  + CRLF
+		cQuery2 += " AND D3_EMISSAO BETWEEN '"+DTOS(MV_PAR13)+"' and '"+DTOS(MV_PAR14)+"'"  + CRLF
+		cQuery2 += " AND D3_ORDEM   BETWEEN '"+MV_PAR15+"' and '"+MV_PAR16+"'"  + CRLF
+		cQuery2 += " AND D3_OP      BETWEEN '"+MV_PAR17+"' and '"+MV_PAR18+"'"  + CRLF
+		cQuery2 += " AND D3_LOCAL   BETWEEN '"+MV_PAR19+"' and '"+MV_PAR20+"'"  + CRLF
+		If MV_PAR21 == 2
+			cQuery2 += " AND D3_CF <> 'DE4'  AND D3_CF <> 'RE4'"  + CRLF
+		EndIf
+		If MV_PAR22 == 1
+			cQuery2 += " AND D3_GRUPO = '3081'"  + CRLF
+		EndIf
+
+		cQuery2 += " ORDER BY D3_EMISSAO, D3_LOCAL, D3_COD, D3_LOTECTL"
+		TCQuery cQuery1+cQuery2 NEW ALIAS "TRB"
+	    MemoWrite("c:\temp\EST033.txt",cQuery1+cQuery2)   
+		TRB->(Dbgotop())
+	
+		// Gerar Excel  
+	   	cWorkSheet := SM0->M0_FILIAL
+	   	cTable     := cTitulo +" - "+ DTOC(Date())  +" - "+  Time()
+	   
+
+		//Cria a planilha do excel
+		oFwMsEx := FWMSExcelXLSX():New()
+		//Criando a aba da planilha
+		oFwMsEx:AddWorkSheet(cWorkSheet)
+		//Criando a Tabela e as colunas
+		oFwMsEx:AddTable(cWorkSheet, cTable)
+
+		//Filial	DT Entrega	 Dias 	Ped Compra	Produto			Descri็ใo					Tipo	Un.Med 	 Quantidade 	Jแ Entregue  	Fornecedor 	Loja	 Nome 	 Telefone 	 Contato 	Cota็ใo	Solic.Compra	 Residuo (S/N)? 
+		//03		15/10/2013	 	-6 	015363		PMPLBCM12000003	TRANSFORMADOR 220/20,4KW    MT	 	UN 	 	 2 	 			-   			000702	01	POLYTEK MAKINA DISTICARET LIMITED SIRKET	XX-XXXX-XXXX                                      	               	      	005472	 
+		//Data Emissใo	Codigo do Produto	Descri็ใo	Centro de Custo	Saida	Custo Unitario	Custo Total	Armaz้m	Tipo de movimento	Documento	Solicitante	Usuario
+
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Filial"    , 2,2)       
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Armaz้m", 2,2)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Produto", 1,1)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Descri็ใo", 1,1)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Lote", 1,1)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Tipo", 1,1)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Und", 1,1)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Dt Emissใo", 2,2)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Centro Custo", 1,1)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Conta Contแbil", 1,1)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Qtd Movto", 3,2)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Custo Unitแrio", 3,2)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Custo Movto", 3,2)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Tipo Movto", 1,1)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Documento", 1,1)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Sequencial", 1,1)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Ordem Servi็o", 1,1)
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Ordem Produ็ใo", 1,1)		
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Solicitante", 1,1)//Nome cpompleto		
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Funcionario", 1,1)//
+		oFwMsEx:AddColumn( cWorkSheet, cTable , "Atendente", 1,1)//
+
+		While TRB->(!Eof())
+			IncProc()
+			oFwMsEx:AddRow( cWorkSheet, cTable, { TRB->D3_FILIAL, TRB->D3_LOCAL, TRB->D3_COD, TRB->B1_DESC,TRB->D3_LOTECTL,;
+			 TRB->B1_TIPO, TRB->B1_UM, TRB->D3_EMISSAO, TRB->D3_CC, TRB->B1_CONTA, TRB->D3_QUANT,TRB->D3_CUSTO1/TRB->D3_QUANT,TRB->D3_CUSTO1,;
+			 TRB->D3_TM+"/"+TRB->D3_CF, TRB->D3_DOC, TRB->D3_NUMSEQ, TRB->D3_ORDEM, TRB->D3_OP, TRB->ranomesoli, TRB->ranomefun, TRB->ranomeaten} )
+			TRB->(dbSkip())
+		End                            
+		TRB->(dbCloseArea())    
+
+		//Ativando o arquivo e gerando o xml
+		oFwMsEx:Activate()
+		oFwMsEx:GetXMLFile(cArquivo)
+
+		//Abrindo o excel e abrindo o arquivo xml
+		oExcel := MsExcel():New()
+		oExcel:WorkBooks:Open(cArquivo)
+		oExcel:SetVisible(.T.)
+		oExcel:Destroy()        
+		/*
+		oFwMsEx:Activate()
+		cArq := CriaTrab( NIL, .F. ) + ".xml"
+		//LjMsgRun( "Gerando o arquivo, aguarde...", cTitulo, {|| oFwMsEx:GetXMLFile( cArq ) } )    
+		oFwMsEx:GetXMLFile( cArq )
+		If __CopyFile( cArq, cDirTmp + cArq )  //cDirTmp
+			oExcelApp := MsExcel():New()
+			oExcelApp:WorkBooks:Open( cDirTmp + cArq ) //cDirTmp
+			oExcelApp:SetVisible(.T.)
+			MsgInfo( "Arquivo " + cArq + " gerado com sucesso no diret๓rio " + cDir )
+		Else
+			MsgInfo( "Arquivo nใo copiado para temporแrio do usuแrio." )
+		Endif*/
+Return Nil
+

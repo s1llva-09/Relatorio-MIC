@@ -1,0 +1,482 @@
+#Include "TOTVS.ch"
+#Include "TopConn.ch"
+#Include "tlpp-core.th"
+
+// Destinatarios do envio automatico. Ficam aqui no topo, juntos, para nao
+// ter que cacar e-mail no meio da rotina quando alguem entrar ou sair.
+
+#DEFINE MIC_TO "pablo.junior@prolinhas.com.br"
+#DEFINE MIC_CC "ana.jaize@prolinhas.com.br"
+
+/*/{Protheus.doc} RelatorioMIC
+    Movimentos Internos Custeados (MIC).
+
+    Junta os dois relatorios que ja existiam:
+      EST033 -> a query e as colunas (SD3 custeado, com solicitante,
+                funcionario e atendente vindos de SCP/SRA/SYS_USR)
+      EST051 -> a forma de rodar: sem tela, gerando Excel e mandando
+                por e-mail quando chamada pelo agendamento
+
+    Os filtros foram enxugados de proposito. O EST033 pedia 22
+    parametros (MV_PAR01 a 22); aqui sobraram emissao e armazem, que
+    sao os que o usuario realmente usa. Quem precisar de recorte fino
+    filtra no proprio Excel depois.
+
+    @param lAuto,   Logico,   .T. roda sem tela e envia e-mail
+    @param cDe,     Caracter, Emissao inicial AAAAMMDD (vazio = hoje)
+    @param cAte,    Caracter, Emissao final   AAAAMMDD (vazio = hoje)
+    @param cLocDe,  Caracter, Armazem inicial (vazio = todos)
+    @param cLocAte, Caracter, Armazem final   (vazio = todos)
+    @return character Caminho do arquivo gerado ("" se nao houver dados)
+
+    @author Pablo Junior (pejunior)
+    @since 27/08/2026
+/*/
+User function RelatorioMIC(lAuto, cDe, cAte, cLocDe, cLocAte) as character
+
+    Local cRet     := "" as character
+    Local cQuery   := "" as character
+    Local cAlias   := "" as character
+    Local cArquivo := "" as character
+    Local aDados   := {} as array
+
+    Default lAuto   := .F.
+    Default cDe     := ""
+    Default cAte    := ""
+    Default cLocDe  := ""
+    Default cLocAte := ""
+
+
+    // Periodo em branco = o dia corrente. Este relatorio nasceu para
+    // rodar diariamente pelo agendamento; trazer o mes inteiro por
+    // engano geraria um anexo enorme no e-mail.
+    If Empty(cDe)
+        cDe := DToS(dDataBase)
+    EndIf
+    If Empty(cAte)
+        cAte := DToS(dDataBase)
+    EndIf
+
+    // Armazem em branco = todos. O "ZZZZZZZZZZ" fecha o BETWEEN pelo
+    // alto, evitando um If separado na montagem da query.
+    If Empty(cLocAte)
+        cLocAte := "ZZZZZZZZZZ"
+    EndIf
+
+    cQuery := MontaQuery(cDe, cAte, cLocDe, cLocAte)
+    
+    cAlias := GetNextAlias()
+    DbUseArea(.T., "TOPCONN", TCGenQry(,, cQuery), cAlias, .F., .T.)
+
+    If (cAlias)->(Eof())
+        (cAlias)->(DbCloseArea())
+        Return cRet
+    EndIf
+
+    //Le tudo antes de montar o excel, liberando o alias cedo
+    While !(cAlias)->(Eof())
+        aAdd(aDados, LeLinha(cAlias))
+
+        //IncProc so existe dentro de Processa(). No modo automatico nao ha barra de progresso e chamar estouraria um erro
+        If !lAuto
+            IncProc()
+        EndIf
+
+        (cAlias)->(dbSkip())
+    EndDo
+
+    (cAlias)->(DbCloseArea())
+
+    cArquivo := MontaNome()
+
+    If GeraExcel(cArquivo, aDados)
+        cRet := cArquivo
+    
+        If lAuto
+            EnviaEmail(cArquivo, cDe, cAte, Len(aDados))
+        EndIf
+    EndIf
+
+Return cRet
+
+/*/{Protheus.doc} MontaQuery
+
+    SQL do relatorio, baseado no EST033 com os filtros do SQL novo.
+    SOBRE O JOIN COM A SF5
+    ----------------------
+    O SQL de origem trazia "F4_TIPO", campo da SF4. Conferido no banco,
+    a SF5 tem F5_TIPO -- era so troca de letra na digitacao. A descricao
+    do tipo tambem nao e F5_DESCRI, e sim F5_TEXTO.
+
+    Faltava a condicao ligando a SF5 ao movimento; sem ela cada linha da
+    SD3 se multiplicaria por TODA a SF5. A chave e F5_CODIGO = D3_TM.
+
+    O nome da tabela vai FIXO em SF5010, e nao por RetSqlName: existem
+    apenas SF5010/020/040/050 no banco. Como o relatorio roda na empresa
+    03, RetSqlName("SF5") montaria "SF5030", que nao existe.
+
+    ATENCAO ao INNER: movimento cujo D3_TM nao esteja cadastrado na SF5
+    fica de fora do relatorio. E o comportamento do SQL de origem. Se um
+    dia o total vier menor que o esperado, e por aqui -- o ajuste seria
+    trocar por LEFT JOIN e mover o F5_TIPO <> 'P' para dentro do ON.
+/*/
+Static Function MontaQuery(cDe as character, cAte as character, cLocDe as character, cLocAte as character) as character
+
+    Local cQuery := "" as character
+
+    cQuery := " SELECT D3_FILIAL, D3_LOCAL, D3_COD, D3_LOTECTL, D3_EMISSAO, "
+    cQuery += "        D3_CC, D3_QUANT, D3_CUSTO1, D3_TM, D3_CF, D3_DOC, "
+    cQuery += "        D3_NUMSEQ, D3_MAT, D3_USUARIO, D3_ORDEM, D3_OP, "
+    cQuery += "        B1_TIPO, B1_GRUPO, B1_UM, B1_CONTA, B1_DESC, "
+    cQuery += "        ISNULL(SRA.RA_NOME, '')  AS RANOMEFUN, "
+    cQuery += "        ISNULL(SRA2.RA_NOME, '') AS RANOMESOLI, "
+    cQuery += "        ISNULL(CP_MAT, '')       AS CPMAT, "
+    cQuery += "        ISNULL(USR.USR_NOME, '') AS RANOMEATEN, "
+    cQuery += "        ISNULL(F5_TEXTO, '')     AS TMDESCRI "
+    cQuery += "   FROM " + RetSqlName("SD3") + " SD3 (NOLOCK) "
+
+    cQuery += "  INNER JOIN " + RetSqlName("SB1") + " SB1 (NOLOCK) "
+    cQuery += "     ON B1_FILIAL = '" + xFilial("SB1") + "' "
+    cQuery += "    AND B1_COD = D3_COD "
+    cQuery += "    AND SB1.D_E_L_E_T_ = '' "
+
+    // Solicitacao ao almoxarifado: liga pelo numero/item gravados no
+    // movimento. LEFT porque nem todo movimento nasce de uma SA.
+    cQuery += "   LEFT JOIN " + RetSqlName("SCP") + " SCP (NOLOCK) "
+    cQuery += "     ON CP_FILIAL = '" + xFilial("SCP") + "' "
+    cQuery += "    AND CP_NUM  = D3_NUMSA "
+    cQuery += "    AND CP_ITEM = D3_ITEMSA "
+    cQuery += "    AND SCP.D_E_L_E_T_ = '' "
+
+    // Duas entradas na MESMA tabela de funcionarios, com apelidos
+    // diferentes: SRA = quem pediu (matricula da solicitacao),
+    // SRA2 = quem movimentou (matricula gravada no proprio movimento).
+    cQuery += "   LEFT JOIN " + RetSqlName("SRA") + " SRA (NOLOCK) "
+    cQuery += "     ON SRA.RA_FILIAL = '" + xFilial("SRA") + "' "
+    cQuery += "    AND SRA.RA_MAT = CP_MAT "
+    cQuery += "    AND SRA.D_E_L_E_T_ = '' "
+
+    cQuery += "   LEFT JOIN " + RetSqlName("SRA") + " SRA2 (NOLOCK) "
+    cQuery += "     ON SRA2.RA_FILIAL = '" + xFilial("SRA") + "' "
+    cQuery += "    AND SRA2.RA_MAT = D3_MAT "
+    cQuery += "    AND SRA2.D_E_L_E_T_ = '' "
+
+    // SYS_USR nao tem sufixo de empresa: e tabela do sistema, unica.
+    cQuery += "   LEFT JOIN SYS_USR USR (NOLOCK) "
+    cQuery += "     ON USR.USR_CODIGO = D3_USUARIO "
+    cQuery += "    AND USR.D_E_L_E_T_ = '' "
+
+    // Tipo de movimento (ver comentario da funcao)
+    cQuery += "  INNER JOIN SF5010 SF5 (NOLOCK) "
+    cQuery += "     ON F5_FILIAL = '    ' "
+    cQuery += "    AND F5_CODIGO = D3_TM "
+    cQuery += "    AND SF5.D_E_L_E_T_ = '' "
+
+    cQuery += "  WHERE SD3.D_E_L_E_T_ = '' "
+    cQuery += "    AND D3_FILIAL = '" + xFilial("SD3") + "' "
+    cQuery += "    AND D3_ESTORNO <> 'S' "
+    cQuery += "    AND D3_EMISSAO BETWEEN '" + cDe + "' AND '" + cAte + "' "
+    cQuery += "    AND D3_LOCAL   BETWEEN '" + cLocDe + "' AND '" + cLocAte + "' "
+
+    // F5_TIPO = 'P' sao os movimentos de producao/apontamento, que este
+    // relatorio de custeado nao considera.
+    cQuery += "    AND F5_TIPO <> 'P' "
+
+    // DE4/RE4 sao os CFs de transferencia entre armazens: entram e saem
+    // pela mesma quantidade, entao inflariam o custeado sem movimento
+    // real. O EST033 tratava isso por parametro; aqui ficou fixo, que e
+    // como o relatorio e usado na pratica.
+    cQuery += "    AND D3_CF <> 'DE4' "
+    cQuery += "    AND D3_CF <> 'RE4' "
+
+    cQuery += "  ORDER BY D3_EMISSAO, D3_LOCAL, D3_COD, D3_LOTECTL "
+
+    // Sem ChangeQuery: a query ja esta na sintaxe nativa do MSSQL, que e
+    // o banco do ambiente.
+
+Return cQuery
+
+/*/{Protheus.doc} LeLinha
+    Le a linha corrente num array, na MESMA ordem das colunas
+    declaradas em GeraExcel. Mexeu numa, mexe na outra.
+/*/
+Static Function LeLinha(cAlias as character) as array
+
+    Local aLinha := {} as array
+    Local nQuant := (cAlias)->D3_QUANT as numeric
+    Local nCusto := (cAlias)->D3_CUSTO1 as numeric
+    Local nUnit  := 0 as numeric
+
+    // O EST033 fazia D3_CUSTO1/D3_QUANT direto e estourava "divisao por
+    // zero" em movimento com quantidade zerada (acontece em ajuste e em
+    // estorno). Aqui o custo unitario fica zero nesse caso.
+    If nQuant != 0
+        nUnit := nCusto / nQuant
+    EndIf
+
+    AAdd(aLinha, Alltrim((cAlias)->D3_FILIAL))
+    AAdd(aLinha, AllTrim((cAlias)->D3_LOCAL))
+    AAdd(aLinha, AllTrim((cAlias)->D3_COD))
+    AAdd(aLinha, AllTrim((cAlias)->B1_DESC))
+    AAdd(aLinha, AllTrim((cAlias)->D3_LOTECTL))
+    AAdd(aLinha, AllTrim((cAlias)->B1_TIPO))
+    AAdd(aLinha, AllTrim((cAlias)->B1_GRUPO))
+    AAdd(aLinha, AllTrim((cAlias)->B1_UM))
+
+    //Data vem como texto AAAAMMDD, sem converter o excel mostraria / 20260825 como numero
+    AAdd(aLinha, DataBr((cAlias)->D3_EMISSAO))
+
+    AAdd(aLinha, AllTrim((cAlias)->D3_CC))
+    AAdd(aLinha, AllTrim((cAlias)->B1_CONTA))
+    
+    //Numericos seguem numericos, para o excel somar e ordenar
+    AAdd(aLinha, nQuant)
+    AAdd(aLinha, nUnit)
+    AAdd(aLinha, nCusto)
+
+    AAdd(aLinha, AllTrim((cAlias)->D3_TM) + "/" + AllTrim((cAlias)->D3_CF))
+    AAdd(aLinha, AllTrim((cAlias)->TMDESCRI))
+    AAdd(aLinha, AllTrim((cAlias)->D3_DOC))
+    AAdd(aLinha, AllTrim((cAlias)->D3_NUMSEQ))
+    AAdd(aLinha, AllTrim((cAlias)->D3_ORDEM))
+    AAdd(aLinha, AllTrim((cAlias)->D3_OP))
+    AAdd(aLinha, AllTrim((cAlias)->RANOMESOLI))
+    AAdd(aLinha, AllTrim((cAlias)->RANOMEFUN))
+    AAdd(aLinha, AllTrim((cAlias)->RANOMEATEN))
+
+Return aLinha
+
+/*/{Protheus.doc} DataBr
+    AAAAMMDD -> dd/mm/aaaa. Vazio devolve vazio (nao "//").
+/*/
+Static function DataBr(cData as character) as character
+
+    Local cRet := "" as character
+
+    cData := AllTrim(cData)
+
+    If Len(cData) == 8
+        cRet := SubStr(cData, 7, 2) + "/" + SubStr(cData, 5, 2) + "/" + SubStr(cData, 1, 4)
+    EndIf
+
+Return cRet
+
+/*/{Protheus.doc} MontaNome
+    Caminho do arquivo de saida.
+    CriaTrab(Nil, .F.) devolve nome UNICO sem criar tabela nenhuma, o
+    que evita duas execucoes gravarem por cima uma da outra.
+/*/
+Static Function MontaNome() as character
+
+    Local cDir := "\cachenosso\" as character
+
+    If !ExistDir(cDir)
+        MakeDir(cDir)
+    EndIf
+
+Return cDir + "MIC_" + CriaTrab(Nil, .F.) + ".xlsx"
+
+
+/*/{Protheus.doc} GeraExcel
+    Grava a planilha em xlsx nativo.
+
+    O EST033/EST051 abriam o arquivo no Excel do usuario via MsExcel()
+    (OLE). Isso nao funciona no SmartClient Web nem no modo automatico,
+    onde nao existe cliente nenhum. Aqui so gravamos, e quem chamou
+    decide o que fazer com o caminho.
+/*/
+Static Function GeraExcel(cArquivo as character, aDados as array) as logical
+
+    Local oExcel  := Nil
+    Local cAba    := "MIC" as character
+    Local cTabela := "Movimentos Internos Custeados" as character
+    Local aCols   := {} as array
+    Local nI      := 0 as numeric
+
+    // {titulo, alinhamento, formato}
+    //   alinhamento: 1=esquerda 2=centro 3=direita
+    //   formato    : 1=texto 2=numero
+    aCols := { ;
+        {"Filial",          2, 1}, ;
+        {"Armazem",         2, 1}, ;
+        {"Produto",         1, 1}, ;
+        {"Descricao",       1, 1}, ;
+        {"Lote",            1, 1}, ;
+        {"Tipo",            2, 1}, ;
+        {"Grupo",           2, 1}, ;
+        {"Und",             2, 1}, ;
+        {"Dt Emissao",      2, 1}, ;
+        {"Centro Custo",    1, 1}, ;
+        {"Conta Contabil",  1, 1}, ;
+        {"Qtd Movto",       3, 2}, ;
+        {"Custo Unitario",  3, 2}, ;
+        {"Custo Movto",     3, 2}, ;
+        {"Tipo Movto",      2, 1}, ;
+        {"Desc Tipo Movto", 1, 1}, ;
+        {"Documento",       1, 1}, ;
+        {"Sequencial",      1, 1}, ;
+        {"Ordem Servico",   1, 1}, ;
+        {"Ordem Producao",  1, 1}, ;
+        {"Solicitante",     1, 1}, ;
+        {"Funcionario",     1, 1}, ;
+        {"Atendente",       1, 1}  }
+
+    oExcel := FWMsExcelXlsx():New()
+    oExcel:AddworkSheet(cAba)
+    oExcel:AddTable(cAba, cTabela)
+
+    For nI := 1 To Len(aCols)
+        oExcel:AddColumn(cAba, cTabela, aCols[nI][1], aCols[nI][2], aCols[nI][3], .F.)
+    Next nI
+
+    For nI := 1 To Len(aDados)
+        oExcel:AddRow(cAba, cTabela, aDados[nI])
+    Next nI
+
+    oExcel:Activate()
+    oExcel:GetXMLFile(cArquivo)   // apesar do nome, grava xlsx tambem
+
+Return File(cArquivo)
+
+/*/{Protheus.doc} EnviaEmail
+    Envia a planilha para a lista fixa do topo do fonte.
+    Mesmo u_WFEmail que o EST051 ja usa, para nao inventar um segundo
+    caminho de envio no ambiente.
+/*/
+Static Function EnviaEmail(cArquivo as character, cDe as character, cAte as character, nLinhas as numeric)
+
+    Local cFrom  := GetMV("MV_RELACNT") as character
+    Local cTitle := "" as character
+    Local cBody  := "" as character
+
+    cTitle := "[MIC] " + DToC(Date()) + " " + AllTrim(SM0->M0_CODIGO) + ;
+              " " + AllTrim(SM0->M0_CODFIL) + " - Movimentos Internos Custeados"
+
+    cBody := "<html><body style='font-family:verdana'>"
+    cBody += "<p>Prezado(a), segue anexo o relatorio de Movimentos Internos Custeados.</p>"
+    cBody += "<p><b>Empresa...: </b>" + AllTrim(SM0->M0_NOMECOM) + "</p>"
+    cBody += "<p><b>Filial....: </b>" + AllTrim(SM0->M0_CODIGO) + " " + ;
+             AllTrim(SM0->M0_CODFIL) + " - " + AllTrim(SM0->M0_FILIAL) + "</p>"
+    cBody += "<p><b>Periodo...: </b>" + DataBr(cDe) + " a " + DataBr(cAte) + "</p>"
+    cBody += "<p><b>Registros.: </b>" + cValToChar(nLinhas) + "</p>"
+    cBody += "<p><b>Emitido em: </b>" + DToC(Date()) + " " + Time() + "</p>"
+    cBody += "</body></html>"
+
+    // Sem remetente o envio falha calado. MV_RELACNT e o parametro que
+    // guarda a conta de e-mail do sistema; se estiver vazio no ambiente,
+    // nao adianta seguir.
+    If Empty(cFrom)
+        ConOut("[MIC] MV_RELACNT vazio -- sem remetente, e-mail nao enviado")
+        Return
+    EndIf
+
+    If !File(cArquivo)
+        ConOut("[MIC] anexo nao encontrado: " + cArquivo)
+        Return
+    EndIf
+
+    ConOut("[MIC] enviando de " + cFrom + " para " + MIC_TO)
+
+    // Ultimo parametro .T. = modo automatico (sem interface). E ele que
+    // faz o u_WFEmail nao abrir janela de erro -- por isso o ConOut
+    // acima e abaixo, que sao a unica pista quando o envio falha.
+    u_WFEmail(cFrom, MIC_TO, MIC_CC, "", cTitle, cBody, cArquivo, .T., .T.)
+
+    ConOut("[MIC] u_WFEmail retornou sem erro")
+
+Return
+
+/*/{Protheus.doc} MICMENU
+    Chamada pelo menu (SIGAEST). Pede os parametros e gera o arquivo.
+    NAO envia e-mail: pelo menu quem pediu ja esta na frente da tela.
+/*/
+User function MICMENU()
+
+    Local aPergs := {} as array
+    Local aRet   := {} as array
+    Local cArq   := "" as character
+    Local cDe    := "" as character
+    Local cAte   := "" as character
+    Local lEnvia := .F. as logical
+
+    // Datas com valor inicial do tipo D: o ParamBox desenha campo de
+    // data com calendario e ja valida data invalida sozinho.
+    AAdd(aPergs, {1, "Emissao de",  dDataBase, "", "", "", "", 50, .F.})
+    AAdd(aPergs, {1, "Emissao ate", dDataBase, "", "", "", "", 50, .F.})
+    AAdd(aPergs, {1, "Armazem de",  Space(2), "@!", "", "", "", 50, .F.})
+    AAdd(aPergs, {1, "Armazem ate", Space(2), "@!", "", "", "", 50, .F.})
+    AAdd(aPergs, {2, "Enviar por e-mail", 2, {"Sim", "Nao"}, 60, "", .F.})
+
+    // Os 3 ultimos argumentos desligam o cache de parametros: o
+    // ParamBox restaura a ultima execucao POR POSICAO, e isso devolve
+    // valor no campo errado sempre que a tela muda de estrutura.
+    If !ParamBox(aPergs, "Movimentos Internos Custeados", @aRet, , , , , , , "MICPARAM", .F., .F.)
+        Return
+    EndIf
+
+    cDe  := If(Empty(aRet[1]), "", DToS(aRet[1]))
+    cAte := If(Empty(aRet[2]), "", DToS(aRet[2]))
+
+    //Comparação de escolha para envio do Email ou não, antes a variavel validava por numero mas foi feita a comparação para aceitar N ou ""
+    If ValType(aRet[5]) == "N"
+        lEnvia := (aRet[5] == 1)
+    Else
+        lEnvia := (Upper(AllTrim(aRet[5])) == "SIM")
+    EndIf
+
+    Processa({|| cArq := U_RelatorioMIC(lEnvia, cDe, cAte, ;
+                                        AllTrim(aRet[3]), AllTrim(aRet[4])) }, ;
+             "Gerando relatorio...")
+
+    If Empty(cArq)
+        MsgAlert("Nenhum movimento encontrado para os filtros informados.", "MIC")
+    ElseIf lEnvia
+        MsgInfo("Arquivo gerado e enviado por e-mail:" + CRLF + cArq, "MIC")
+    Else
+        MsgInfo("Arquivo gerado em:" + CRLF + cArq, "MIC")
+    EndIf
+
+Return
+
+
+/*/{Protheus.doc} MICAUTO
+    Chamada pelo agendamento (colocar no QBG, ao lado do u_EST051()).
+    Roda sem tela, no dia corrente, e envia o e-mail.
+
+    SOBRE O AMBIENTE
+    ----------------
+    Job puro nao tem login: sem RpcSetEnv as tabelas nem abrem. Mas esta
+    funcao tambem roda pelo QBG a partir do menu, onde o ambiente JA
+    existe -- e ai o RpcClearEnv do final derrubaria o ambiente da
+    sessao do usuario, fechando SX2/SX5 e estourando o erro
+    "Alias does not exist SX2" assim que o menu tentasse seguir.
+
+    Por isso so montamos quando nao ha ambiente, e so limpamos aquilo
+    que nos mesmos montamos.
+/*/
+User Function MICAUTO()
+
+    Local cArq    := "" as character
+    Local lMontou := .F. as logical
+
+    // cEmpAnt vazio = ninguem logado, ou seja, estamos em job puro.
+    If Empty(cEmpAnt)
+        RpcSetEnv("03", "5202")
+        lMontou := .T.
+    EndIf
+
+    cArq := U_RelatorioMIC(.T.)
+
+    If Empty(cArq)
+        ConOut("[MIC] sem movimentos no periodo -- e-mail nao enviado")
+    Else
+        ConOut("[MIC] arquivo gerado e enviado: " + cArq)
+    EndIf
+
+    // So derruba o ambiente se foi esta funcao que o montou.
+    If lMontou
+        RpcClearEnv()
+    EndIf
+
+Return
+

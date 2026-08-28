@@ -1,0 +1,215 @@
+// Bibliotecas TOTVS
+#Include "TOTVS.ch"
+#Include "protheus.ch"
+#Include "tlpp-core.th"
+#Include "tlpp-rest.th"
+#Include "topConn.ch"
+#Include "tbiconn.ch" 
+
+/*/
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÉÍÍÍÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍ»±±
+±±ºPrograma  ³ QBG º Autor ³ PCGUISELINI    º Data ³         16/11/2017   º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºDescricao ³                                          				  º±±
+±±º          ³                                                            º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºUso       ³ AP6 IDE                                                    º±±
+±±ÈÍÍÍÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+/*/
+
+User Function QBG 
+
+	u_MICAUTO()
+
+			// ConOut( "   " )
+			// ConOut( "************************************************************" )
+			// ConOut( "   " )
+			// ConOut( "PCPLean5 = Integracao com PCP Lean "+DtoC(Date())+" "+Time() ) 
+			// ConOut( "   " )
+			// u_PCPLean5() 
+
+			// ConOut( "   " )
+			// ConOut( "************************************************************" )
+			// ConOut( "   " )
+			// ConOut( "PCPLean6 = Integracao com PCP Lean "+DtoC(Date())+" "+Time() ) 
+			// ConOut( "   " )
+			// u_PCPLean6() 
+
+			// ConOut( "   " )
+			// ConOut( "************************************************************" )
+			// ConOut( "   " )
+			// ConOut( "PCPLean7 = Integracao com PCP Lean "+DtoC(Date())+" "+Time() ) 
+			// ConOut( "   " )
+			// u_PCPLean7() 
+
+
+// dbSelectArea("SB1")
+// dbSetOrder(1)  
+
+// dbSelectArea("SB9")
+// dbSetOrder(1)
+// dbGotop()
+
+// Processa( {|| QBG() }, "Aguarde...", "Lendo Movtos...",.F.)
+// //Processa( { || Fat007proc() } )
+Return Nil
+
+/***************************
+**
+***************************/
+// Static Function QBG()
+// Local nTotal := 0
+// Local nAtual := 0
+   
+// 	cQuery := "SELECT B2_FILIAL, B2_COD"
+// 	cQuery += " FROM SB2030 SB2 (NOLOCK)"
+// 	cQuery += " INNER JOIN SB1030 SB1 (NOLOCK) ON B1_COD = B2_COD AND B1_TIPO IN ('MS','MP','PI','PA') AND SB1.D_E_L_E_T_=''  AND B2_LOCAL = B1_LOCPAD --MS, MP, PI e PA"
+// 	cQuery += " WHERE SB2.D_E_L_E_T_='' AND B2_FILIAL ='5202'"
+// 	cQuery += " ORDER BY B2_FILIAL, B2_COD"
+// 	TCQuery cQuery NEW ALIAS "TRB"
+
+// 	Count To nTotal     // Contando os registros 
+//     ProcRegua(nTotal)
+
+// 	TRB->(Dbgotop())
+
+// 	While !TRB->(EOF())
+//        //Incrementa a mensagem na régua
+//         nAtual++
+//         IncProc("Atualizando registro " + cValToChar(nAtual) + " de " + cValToChar(nTotal) + "...")
+
+// 		DBSelectArea("SB9")
+// 		IF !(SB9->(DBSeek("5204"+TRB->B2_COD+"A3"+"20220430")))
+// 			SB9->(Reclock("SB9",.T.))
+// 			SB9->B9_FILIAL := "5204"
+// 			SB9->B9_COD    := TRB->B2_COD
+// 			SB9->B9_LOCAL  := "A3"
+// 			SB9->B9_DATA   := CTOD("30/04/2022")		
+// 			SB9->(MsUnlock())
+// 		Endif			
+
+// 		DBSelectArea("SB2")
+// 		If !(SB2->(DbSeek("5204"+TRB->B2_COD+"A3")))
+// 			RecLock("SB2",.T.)
+// 			SB2->B2_FILIAL := "5204"
+// 			SB2->B2_COD   := TRB->B2_COD
+// 			SB2->B2_LOCAL := "A3"
+// 			SB2->B2_QATU  := 0
+// 			SB2->B2_VATU1 := 0
+// 			SB2->(MsUnLock())
+// 		Endif
+
+// 		TRB->(dbSkip())
+// 	End             
+// Return Nil
+
+
+
+// Static Function AjustaSequencialMovimentosResiduo() 
+// 	Local cSP    := "[dbo].[usp_AjustaSequencialMovimentosResiduo]"
+//     Local _cGrupo := cEmpAnt
+//     Local _cFilial := cFilAnt 
+
+//     // cQuery := "EXEC "+cSP+" @Grupo='" + _cGrupo + "',@Filial='" + _cFilial +"',@DataBloqueioMovto='" + dtos(dDtMovIni) + "'" 
+//     // TCQuery (cQuery) ALIAS "USP" NEW
+//     // MemoWrite("C:\temp\USP.txt", cQuery)
+
+//     If !TCSPExist("usp_Armazem_ListarTodos")
+//         MsgStop('Stored Procedure  não existe!') 
+//         Return Nil
+//     Endif
+    
+//     aResult := TCSPExec(cSP, _cGrupo, _cFilial, dDtMovFim) 
+
+//     If Empty(aResult)
+//         MsgStop(TCSQLError())
+//         Return Nil
+//     Endif
+// Return Nil
+
+// Static Function  Est050()
+
+//     Local cStoredProcedure as character   
+
+//     // EST050    	01	Data Saldo Inicial?           
+//     // EST050    	02	Data Saldo Fechamento?        
+//     // EST050    	03	Data Movimento Inicial?       
+//     // EST050    	04	Data Movimento Final?         
+//     // EST050    	05	Produto De?                   
+//     // EST050    	06	Produto Ate?                  
+
+
+//     cStoredProcedure := "EXEC usp_KardexTurbo"
+//     cStoredProcedure += "   '" + cEmpAnt + "'"
+//     cStoredProcedure += "  ,'" + cFilAnt + "'"
+//     cStoredProcedure += "  ,'20260401' "
+//     cStoredProcedure += "  ,'20260401' "
+//     cStoredProcedure += "  ,'20260401' "
+//     cStoredProcedure += "  ,'20260401' "
+//     cStoredProcedure += "  ,'TTB155X360BR             ' "
+//     cStoredProcedure += "  ,'TTB155X360BR             ' "
+//     // cStoredProcedure += "GO"
+//     MemoWrite("C:\temp\EST050_SP.sql", cStoredProcedure)
+
+//     TCQUERY cStoredProcedure NEW ALIAS "TRBSP"
+
+//     // // Valida se houve retorno
+//     // If TRBSP->(EoF())
+//     //     FWAlertWarning("Erro na execução da Stored Procedure: " + TcSqlError() + ".", "EST050 - Atenção")
+//     //     Return
+//     // EndIfx
+
+//     If !TCSPExist("usp_KardexTurbo")
+//         MsgStop('Stored Procedure  não existe!') 
+//         Return Nil
+//     Endif
+
+// Return Nil
+
+
+
+
+Static Function ProduzirLaminadora()
+    Local nTotal := 0
+    Local nAtual := 0
+    Local cAliasZPW     := GetNextAlias()  as Character
+
+	cQuery := "SELECT ZPW_FILIAL, ZPW_ETIQ, ZPW_TIPO, ZPW_STATUS, ZPW_ULTBOB, ZPW_OP, ZPW_CODPRO, ZPW_DTPROD, ZPW_HRPROD, ZPW_QTPROD, ZPW_PESBRU, ZPW_PESLIQ, ZPW_QTDML, ZPW_QTDM2, ZPW_LOTORI, ZPW_MAQ, ZPW_IDPW, ZPW.R_E_C_N_O_ as ZPWRECNO"+ CRLF
+    cQuery += "       ,B8_LOTECTL, B8_SALDO, B8_SALDO2, B8_EMPENHO, B8_EMPENH2, SB8.R_E_C_N_O_ as SB8RECNO"+ CRLF
+	cQuery += "       ,B1_UM, B1_RASTRO, SB1.R_E_C_N_O_ as SB1RECNO"+ CRLF
+	cQuery += "       ,ISNULL(BZ_LOCALIZ, B1_LOCALIZ) as 'ENCERECADO'"+ CRLF
+ 	cQuery += "   FROM " +RetSqlName("ZPW")+ " ZPW (NOLOCK)"+ CRLF
+	cQuery += "   INNER JOIN " +RetSqlName("SB8")+ " SB8 (NOLOCK) ON B8_FILIAL=ZPW_FILIAL AND B8_LOTECTL=ZPW_LOTORI AND SB8.D_E_L_E_T_='' AND B8_LOCAL='LM'"+ CRLF
+	cQuery += "   INNER JOIN " +RetSqlName("SB1")+ " SB1 (NOLOCK) ON B1_COD = B8_PRODUTO AND SB1.D_E_L_E_T_=''"+ CRLF
+	cQuery += "   LEFT  JOIN " +RetSqlName("SBZ")+ " SBZ (NOLOCK) ON BZ_FILIAL=ZPW_FILIAL AND BZ_COD=B1_COD AND SBZ.D_E_L_E_T_=''"+ CRLF
+	cQuery += "   WHERE ZPW_FILIAL = '"+xFilial("ZPW")+"'"+ CRLF
+ 	cQuery += "AND ZPW_STATUS ='0'"   + CRLF
+	cQuery += "         AND ZPW_NUMSEQ=''"+ CRLF
+	cQuery += " 		AND ZPW_TIPO='LA'"+ CRLF
+	cQuery += "   ORDER BY ZPW_FILIAL, ZPW_ETIQ"
+	
+    cQuery := ChangeQuery(cQuery)
+
+    // Executa query
+    dbUseArea( .T., "TOPCONN", TcGenQry( ,, cQuery ), cAliasZPW, .T., .T. )
+
+	(cAliasZPW)->(Dbgotop())    
+  	Count To nTotal  
+	(cAliasZPW)->(Dbgotop())
+
+    ProcRegua(nTotal)
+	While !(cAliasZPW)->(EOF())
+       //Incrementa a mensagem na régua
+        nAtual++
+        IncProc("Atualizando registro " + cValToChar(nAtual) + " de " + cValToChar(nTotal) + "...")
+	
+         U_PROPRDLA(.T., (cAliasZPW)->ZPW_ETIQ)
+
+		(cAliasZPW)->(dbSkip())
+	End        
+
+Return Nil
