@@ -6,7 +6,6 @@
 // ZZ_MOVCUST (SIGACFG > Ambiente > Cadastros > Parametros), separados
 // por ";". Assim entra e sai gente da lista sem recompilar nada.
 // Lembrando que parametro e por empresa: criado na 03, vale so na 03.
-#DEFINE MIC_CC "ana.jaize@prolinhas.com.br"
 
 /*/{Protheus.doc} RelatorioMIC
     Movimentos Internos Custeados (MIC).
@@ -386,7 +385,11 @@ Static Function EnviaEmail(cArquivo as character, cDe as character, cAte as char
     // Ultimo parametro .T. = modo automatico (sem interface). E ele que
     // faz o u_WFEmail nao abrir janela de erro -- por isso o ConOut
     // acima e abaixo, que sao a unica pista quando o envio falha.
-    u_WFEmail(cFrom, cTo, MIC_CC, "", cTitle, cBody, cArquivo, .T., .T.)
+    // Ordem dos argumentos: from, to, CC, CCO, titulo, corpo, anexo,
+    // tipo(.T.=HTML), automatico. Sao NOVE -- pular um desloca todos os
+    // seguintes e o e-mail sai com o corpo no lugar do titulo.
+    // CC e CCO vazios: todo mundo vai no envio normal, via ZZ_MOVCUST.
+    u_WFEmail(cFrom, cTo, "", "", cTitle, cBody, cArquivo, .T., .T.)
 
     ConOut("[MIC] u_WFEmail retornou sem erro")
 
